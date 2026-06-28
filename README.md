@@ -27,6 +27,8 @@ This project constitutes a formatting transformation only. The underlying conten
 * Structured into sections, subsections, and internal references.
 * Organized into modular source files for compilation.
 
+The ETL only updates the rules based on official sources.
+
 No substantive editorial changes have been made. The wording, structure, and rule numbering remain consistent with the publicly available source document.
 
 This repository is not a substitute for the official publication.
