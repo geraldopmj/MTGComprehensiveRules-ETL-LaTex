@@ -1,4 +1,4 @@
-# MTG Rules ETL
+# MTG Rules - ETL to update the LaTex Comprehensive Rules
 
 The purpose of this project is strictly technical and editorial: to demonstrate document structuring, typographic composition, and LaTeX-based publishing of a large, structured rules text.
 
