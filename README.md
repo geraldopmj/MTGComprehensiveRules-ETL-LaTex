@@ -1,60 +1,150 @@
-# Magic: The Gathering – Comprehensive Rules (Unofficial LaTeX Typesetting)
+# MTG Rules ETL
 
-## Independent Typesetting Project
+## What It Is
 
-This repository contains an independently created LaTeX typesetting of the publicly released document titled *Magic: The Gathering Comprehensive Rules*, as made available by Wizards of the Coast LLC  [(official rules link)](https://magic.wizards.com/en/rules).
+This project maintains an unofficial LaTeX body file for the Magic: The
+Gathering Comprehensive Rules and a DuckDB copy of the parsed rule index.
 
-The purpose of this project is strictly technical and editorial: to demonstrate document structuring, typographic composition, and LaTeX-based publishing of a large, structured rules text.
+The LaTeX sources live in `latex/`.
 
-No original game content has been created, modified, reinterpreted, or supplemented.
+The ETL seeds DuckDB from `latex/rules.tex` when the database is missing or empty,
+then checks the official Wizards rules page for the latest TXT release. If the
+effective date is unchanged, the job reports `skipped`. If the date changed, it
+loads the new rule groups and rule sections into DuckDB and rewrites
+`latex/rules.tex` with the same chapter/section/subsection style used by the
+existing LaTeX file. The job also keeps the cover/title dates in
+`latex/mtg_rules.tex` aligned with the parsed official effective date, even on a
+same-date `skipped` run.
 
-## Ownership and Intellectual Property
+## How It Works
 
-Magic: The Gathering®, its name, logos, mechanics, terminology, and all related intellectual property are owned exclusively by Wizards of the Coast LLC.
+The entry point is:
 
-The Comprehensive Rules are the copyrighted property of Wizards of the Coast LLC.
+```powershell
+& D:\code\MTG\.venv\Scripts\python.exe -m mtg_rules_etl.cli --db data\mtg_rules.duckdb --rules-tex latex\rules.tex --cover-tex latex\mtg_rules.tex
+```
 
-This repository:
+Default source page: `https://magic.wizards.com/en/rules`.
 
-* Does not claim ownership of any rule text or terminology.
-* Does not assert any rights over the underlying content.
-* Does not distribute derivative gameplay material.
-* Does not present itself as an official or authorized publication.
+The ETL discovers the TXT link from the source page. It does not hardcode the
+dated TXT URL.
 
-All rule text remains the intellectual property of its respective owner.
+## Architecture and Design Rationale
 
-## Nature of This Work
+Pattern: Pipe-and-Filter with Ports and Adapters.
 
-This project constitutes a formatting transformation only. The underlying content has been:
+The pipeline is separated into extraction, parsing/validation, persistence, and
+LaTeX rendering. HTTP and DuckDB are isolated behind adapters so tests can run
+without the network and without a permanent database.
 
-* Converted from plain text to LaTeX markup.
-* Structured into sections, subsections, and internal references.
-* Organized into modular source files for compilation.
+Local patterns:
 
-No substantive editorial changes have been made. The wording, structure, and rule numbering remain consistent with the publicly available source document.
+| Pattern | Code | Purpose |
+| --- | --- | --- |
+| Source adapter | `mtg_rules_etl/source.py` | Fetch official HTML/TXT and constrain allowed HTTPS hosts. |
+| Repository | `mtg_rules_etl/repository.py` | Own DuckDB schema and parameterized writes. |
+| Use case | `mtg_rules_etl/pipeline.py` | Orchestrate one ETL run and idempotent update behavior. |
+| Renderer | `mtg_rules_etl/latex.py` | Convert parsed rules to the existing LaTeX body format. |
 
-This repository is not a substitute for the official publication.
+## Specs and Contracts
 
-## No Affiliation
+The SDD spec is in `docs/specs/mtg_rules_etl.md`.
 
-This project is not affiliated with, endorsed by, sponsored by, or approved by Wizards of the Coast LLC.
+DuckDB tables:
 
-Any references to Magic: The Gathering are used solely to identify the original source material.
+| Table | Key | Purpose |
+| --- | --- | --- |
+| `rule_groups` | `(id, effective_date)` | Stores group ids such as 100, 200, 300 and their chapter names. |
+| `rules` | `(id, effective_date)` | Stores rule section ids such as 100, 101, 102, with `group_id`, `name`, and `rule_text`. |
 
-## Fair Use and Intent
+`rule_text` is plain text. Some official placeholder sections can be empty, for
+example `600. General` in the June 19, 2026 rules.
 
-This repository is intended for:
+## Data Flow
 
-* Educational purposes
-* Academic or typographic study
-* Personal reference use
+```mermaid
+flowchart LR
+  Latex["latex/rules.tex"] --> Seed["Seed DuckDB when empty"]
+  Page["Official rules page"] --> Link["Discover TXT link"]
+  Link --> Txt["Download TXT"]
+  Txt --> Parse["Parse date, groups, sections"]
+  Seed --> Compare["Compare effective dates"]
+  Parse --> Compare
+  Compare -->|Same date| Skip["Report skipped"]
+  Compare -->|Different date| Load["Load DuckDB"]
+  Load --> Render["Render latex/rules.tex"]
+  Compare --> Cover["Update latex/mtg_rules.tex date if stale"]
+```
 
-It is not intended for commercial exploitation.
+## How To Run
 
-If Wizards of the Coast LLC determines that this repository infringes upon its rights or exceeds acceptable use, the material will be removed upon request.
+Create the virtual environment and install dependencies:
 
-## Authoritative Source
+```powershell
+C:\Python312\python.exe -m venv D:\code\MTG\.venv
+& D:\code\MTG\.venv\Scripts\python.exe -m pip install -r D:\code\MTG\requirements.txt
+```
 
-For the official and legally authoritative version of the Comprehensive Rules, consult the publication made available directly by Wizards of the Coast LLC through its official website.
+Run the ETL:
 
-This project exists solely as an independent LaTeX typesetting exercise.
+```powershell
+& D:\code\MTG\.venv\Scripts\python.exe -m mtg_rules_etl.cli --db data\mtg_rules.duckdb --rules-tex latex\rules.tex --cover-tex latex\mtg_rules.tex
+```
+
+## How To Test
+
+The sandbox may not allow pytest to use the default Windows temp folder, so use
+a workspace basetemp:
+
+```powershell
+New-Item -ItemType Directory -Force D:\code\MTG\.tmp | Out-Null
+& D:\code\MTG\.venv\Scripts\python.exe -m pytest -q --basetemp D:\code\MTG\.tmp\pytest
+```
+
+## How To Update
+
+| Need to change | Start here | Also check |
+| --- | --- | --- |
+| DuckDB schema | `mtg_rules_etl/repository.py` | `docs/specs/mtg_rules_etl.md`, repository tests |
+| Official source behavior | `mtg_rules_etl/source.py` | source tests, SSRF host allowlist |
+| TXT or LaTeX parsing | `mtg_rules_etl/parsers.py` | parser fixtures/tests |
+| LaTeX output format and cover date replacement | `mtg_rules_etl/latex.py` | `latex/rules.tex`, `latex/mtg_rules.tex`, renderer tests |
+| ETL orchestration | `mtg_rules_etl/pipeline.py` | pipeline tests and logging contract |
+
+## Operations and Troubleshooting
+
+Rerun is safe. The repository deletes and reloads rows for the same
+`effective_date` in one transaction, so duplicate rows are not created.
+
+If a network call fails, rerun the same command after connectivity or sandbox
+permissions are fixed. A failed run may seed the old LaTeX version first; the
+next successful run will continue from that state.
+
+This ETL updates `latex/rules.tex` and the effective-date text in
+`latex/mtg_rules.tex`. It does not update `latex/glossary.tex`, `latex/credits.tex`,
+or the PDF unless that scope is added.
+
+## Logging and Error Handling
+
+CLI logs are JSON lines on stderr. Each lifecycle event includes UTC timestamp,
+level, logger, message, run id, and stage. The pipeline logs start, seed,
+download, parse summary, final status, and failure. It logs counts and safe URLs,
+not every rule row.
+
+Common final statuses:
+
+| Status | Meaning |
+| --- | --- |
+| `updated` | The official date differed; DuckDB, `latex/rules.tex`, and stale cover dates were updated. |
+| `skipped` | The official date matched the latest DuckDB date; rule loading was skipped, but stale cover dates can still be corrected. |
+
+## Security and Privacy
+
+The source adapter accepts only HTTPS URLs from `magic.wizards.com` for the
+rules page and `media.wizards.com` or `magic.wizards.com` for TXT downloads.
+DuckDB writes use parameterized statements.
+
+## References
+
+- Official rules page: https://magic.wizards.com/en/rules
+- DuckDB Python API: https://duckdb.org/docs/stable/clients/python/overview
