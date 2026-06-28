@@ -1,6 +1,8 @@
-\documentclass[11pt,twoside]{book}
+\documentclass[11pt,twoside,openany]{book}
 
 \usepackage[utf8]{inputenc}
+\DeclareUnicodeCharacter{2212}{\ensuremath{-}}
+\DeclareUnicodeCharacter{221E}{\ensuremath{\infty}}
 \usepackage[T1]{fontenc}
 \usepackage{ebgaramond}
 \usepackage{microtype}
@@ -20,7 +22,7 @@
 \usepackage{titlesec}
 \usepackage{fancyhdr}
 \usepackage{graphicx}
-\usepackage{geometry}
+\usepackage{eso-pic}
 \usepackage{emptypage}
 
 
@@ -42,11 +44,24 @@
 \fancyhead[CE]{\scshape Magic: The Gathering}
 \fancyhead[CO]{\scshape Comprehensive Rules}
 \renewcommand{\headrulewidth}{0.5pt}
+\setlength{\headheight}{14pt}
+\let\cleardoublepage\clearpage
+
+\newcommand{\fullpageimage}[1]{%
+	\clearpage
+	\thispagestyle{empty}%
+	\AddToShipoutPictureBG*{%
+		\AtPageLowerLeft{%
+			\includegraphics[width=\paperwidth,height=\paperheight]{#1}%
+		}%
+	}%
+	\null
+	\clearpage
+}
 
 
 \begin{document}
 	
-	\clearpage
 	\thispagestyle{empty}
 	
 	\vspace*{\fill}
@@ -110,55 +125,41 @@
 	\noindent
 	LaTeX Edition --- 2026
 	
-	\vspace*{\fill}
-	
-	\clearpage
+	\fullpageimage{capa.png}
 	
 	\thispagestyle{empty}
-	\newgeometry{margin=0pt}
-	\noindent\includegraphics[width=\paperwidth,height=\paperheight]{capa.png}\clearpage
+	\begingroup
+	\centering
 	
-	% volta à geometria normal SEM \restoregeometry
-	\newgeometry{
-		paperwidth=150mm,
-		paperheight=230mm,
-		inner=25mm,
-		outer=20mm,
-		top=25mm,
-		bottom=20mm
-	}
+	\vspace*{2cm}
 	
-	\begin{titlepage}
-		\thispagestyle{empty}
-		\centering
-		
-		\vspace*{2cm}
-		
-		\pgfornament[width=6cm]{85}\par\vspace{2cm}
-		
-		{\fontsize{30}{36}\selectfont\scshape Magic:}\par
-		{\fontsize{22}{28}\selectfont\scshape The Gathering}\par\vspace{1cm}
-		
-		{\Large\textit{Comprehensive Rules}}\par\vspace{2cm}
-		
-		\pgfornament[width=3cm]{75}\par\vspace{2cm}
-		
-		{\large\textsc{Effective as of June 19, 2026}}\par
-		
-		\vfill
-		\pgfornament[width=6cm]{84}
-		
-	\end{titlepage}
+	\pgfornament[width=6cm]{85}\par\vspace{2cm}
 	
-%	\thispagestyle{empty} \frontmatter
+	{\fontsize{30}{36}\selectfont\scshape Magic:}\par
+	{\fontsize{22}{28}\selectfont\scshape The Gathering}\par\vspace{1cm}
+	
+	{\Large\textit{Comprehensive Rules}}\par\vspace{2cm}
+	
+	\pgfornament[width=3cm]{75}\par\vspace{2cm}
+	
+	{\large\textsc{Effective as of June 19, 2026}}\par
+	
+	\vfill
+	\pgfornament[width=6cm]{84}\par
+	\endgroup
+	
+	\frontmatter
+	\thispagestyle{empty}
 	\tableofcontents
+	\newpage
+	\newpage
 	
 	\mainmatter
 	
-\input{rules}
+	\input{rules}
+	
+	\input{glossary}
 
-\input{glossary}
-
-\input{credits}
+	\input{credits}
 
 \end{document}
