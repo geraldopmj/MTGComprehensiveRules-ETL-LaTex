@@ -67,7 +67,7 @@ complete extract, transform, load, and LaTeX publish cycle.
 The entry point is:
 
 ```powershell
-& D:\code\MTG\.venv\Scripts\python.exe -m mtg_rules_etl.cli --db data\mtg_rules.duckdb --rules-tex latex\rules.tex --cover-tex latex\mtg_rules.tex
+.venv\Scripts\python.exe -m mtg_rules_etl.cli --db data\mtg_rules.duckdb --rules-tex latex\rules.tex --cover-tex latex\mtg_rules.tex
 ```
 
 Default source page: `https://magic.wizards.com/en/rules`.
@@ -141,13 +141,13 @@ Create the virtual environment and install dependencies:
 
 ```powershell
 C:\Python312\python.exe -m venv D:\code\MTG\.venv
-& D:\code\MTG\.venv\Scripts\python.exe -m pip install -r D:\code\MTG\requirements.txt
+.venv\Scripts\python.exe -m pip install -r D:\code\MTG\requirements.txt
 ```
 
 Run the ETL:
 
 ```powershell
-& D:\code\MTG\.venv\Scripts\python.exe -m mtg_rules_etl.cli --db data\mtg_rules.duckdb --rules-tex latex\rules.tex --cover-tex latex\mtg_rules.tex
+.venv\Scripts\python.exe -m mtg_rules_etl.cli --db data\mtg_rules.duckdb --rules-tex latex\rules.tex --cover-tex latex\mtg_rules.tex
 ```
 
 ## How To Test
@@ -157,7 +157,7 @@ a workspace basetemp:
 
 ```powershell
 New-Item -ItemType Directory -Force D:\code\MTG\.tmp | Out-Null
-& D:\code\MTG\.venv\Scripts\python.exe -m pytest -q --basetemp D:\code\MTG\.tmp\pytest
+.venv\Scripts\python.exe -m pytest -q --basetemp D:\code\MTG\.tmp\pytest
 ```
 
 ## How To Update
