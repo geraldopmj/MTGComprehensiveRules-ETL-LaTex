@@ -1,5 +1,21 @@
 # MTG Rules ETL
 
+## Table of Contents
+
+- [What It Is](#what-it-is)
+- [ETL Overview](#etl-overview)
+- [How It Works](#how-it-works)
+- [Architecture and Design Rationale](#architecture-and-design-rationale)
+- [Specs and Contracts](#specs-and-contracts)
+- [Data Flow](#data-flow)
+- [How To Run](#how-to-run)
+- [How To Test](#how-to-test)
+- [How To Update](#how-to-update)
+- [Operations and Troubleshooting](#operations-and-troubleshooting)
+- [Logging and Error Handling](#logging-and-error-handling)
+- [Security and Privacy](#security-and-privacy)
+- [References](#references)
+
 ## What It Is
 
 This project maintains an unofficial LaTeX body file for the Magic: The
@@ -16,6 +32,36 @@ existing LaTeX file. The job also keeps the cover/title dates in
 `latex/mtg_rules.tex` aligned with the parsed official effective date, even on a
 same-date `skipped` run.
 
+## ETL Overview
+
+This is a batch ETL for keeping the local LaTeX edition and the DuckDB rule
+index aligned with the official Wizards Comprehensive Rules TXT release.
+
+At a high level, each run does five things:
+
+1. Initializes DuckDB if `data/mtg_rules.duckdb` does not exist yet.
+2. Seeds DuckDB from the current `latex/rules.tex` when the database is empty,
+   preserving the local February 27, 2026 baseline before any official update is
+   fetched.
+3. Extracts the official rules page, discovers the current TXT URL, downloads
+   the TXT, and reads the effective date from the line that starts with
+   `These rules are effective as of`.
+4. Transforms the TXT into the project contract: top-level rule groups such as
+   `100`, `200`, and `300`, plus specific rule sections such as `101`, `102`,
+   and `103`, each versioned by `effective_date`.
+5. Loads the parsed version into DuckDB and publishes the LaTeX output only when
+   the official effective date is newer than the latest stored version.
+
+DuckDB is the source of truth for stored rule versions. The LaTeX files are the
+published representation used to build the PDF. If the incoming official date is
+already present in DuckDB, the run is idempotent: it reports `skipped` and does
+not rewrite `latex/rules.tex`, while still correcting stale effective-date text
+in `latex/mtg_rules.tex` if needed.
+
+The ETL is intentionally small and local. There is no scheduler, queue, or
+SQLite fallback in the current project: running the CLI command performs one
+complete extract, transform, load, and LaTeX publish cycle.
+
 ## How It Works
 
 The entry point is:
@@ -28,6 +74,17 @@ Default source page: `https://magic.wizards.com/en/rules`.
 
 The ETL discovers the TXT link from the source page. It does not hardcode the
 dated TXT URL.
+
+Main runtime stages:
+
+| Stage | Responsibility | Main code |
+| --- | --- | --- |
+| Extract | Read the Wizards rules page, find the TXT release, and download it. | `mtg_rules_etl/source.py` |
+| Seed | Populate DuckDB from the existing LaTeX body when the database is empty. | `mtg_rules_etl/pipeline.py`, `mtg_rules_etl/parsers.py` |
+| Transform | Parse effective date, rule groups, section names, and section text. | `mtg_rules_etl/parsers.py` |
+| Load | Store versioned rows in `rule_groups` and `rules` with transactional writes. | `mtg_rules_etl/repository.py` |
+| Publish | Render `latex/rules.tex` and update cover/title effective-date text. | `mtg_rules_etl/latex.py` |
+| Orchestrate | Compare dates, decide `updated` vs `skipped`, and emit structured logs. | `mtg_rules_etl/pipeline.py` |
 
 ## Architecture and Design Rationale
 
@@ -64,16 +121,18 @@ example `600. General` in the June 19, 2026 rules.
 
 ```mermaid
 flowchart LR
-  Latex["latex/rules.tex"] --> Seed["Seed DuckDB when empty"]
+  LocalLatex["latex/rules.tex"] --> Seed["Seed DuckDB when empty"]
   Page["Official rules page"] --> Link["Discover TXT link"]
   Link --> Txt["Download TXT"]
   Txt --> Parse["Parse date, groups, sections"]
   Seed --> Compare["Compare effective dates"]
   Parse --> Compare
   Compare -->|Same date| Skip["Report skipped"]
-  Compare -->|Different date| Load["Load DuckDB"]
+  Skip --> Cover["Correct stale cover date if needed"]
+  Compare -->|New date| Load["Load DuckDB version"]
   Load --> Render["Render latex/rules.tex"]
-  Compare --> Cover["Update latex/mtg_rules.tex date if stale"]
+  Render --> Cover["Update latex/mtg_rules.tex date"]
+  Cover --> SourcesReady["LaTeX sources ready for PDF build"]
 ```
 
 ## How To Run
