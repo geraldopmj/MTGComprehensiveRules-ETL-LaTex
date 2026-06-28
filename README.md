@@ -195,8 +195,8 @@ flowchart LR
 Create the virtual environment and install dependencies:
 
 ```powershell
-C:\Python312\python.exe -m venv D:\code\MTG\.venv
-.venv\Scripts\python.exe -m pip install -r D:\code\MTG\requirements.txt
+C:\Python312\python.exe -m venv .venv
+.venv\Scripts\python.exe -m pip install -r requirements.txt
 ```
 
 Run the ETL:
@@ -211,8 +211,8 @@ The sandbox may not allow pytest to use the default Windows temp folder, so use
 a workspace basetemp:
 
 ```powershell
-New-Item -ItemType Directory -Force D:\code\MTG\.tmp | Out-Null
-.venv\Scripts\python.exe -m pytest -q --basetemp D:\code\MTG\.tmp\pytest
+New-Item -ItemType Directory -Force .tmp | Out-Null
+.venv\Scripts\python.exe -m pytest -q --basetemp .tmp\pytest
 ```
 
 ## How To Update
